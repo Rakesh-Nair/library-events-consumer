@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.boot.ssl.SslBundles;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.dao.RecoverableDataAccessException;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.config.ContainerCustomizer;
@@ -19,7 +20,10 @@ import org.springframework.kafka.listener.CommonErrorHandler;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
 import org.springframework.util.backoff.FixedBackOff;
+
+import java.util.List;
 
 @Configuration
 @EnableKafka
@@ -50,11 +54,20 @@ public class LibraryEventsConsumerConfig {
 
     private DefaultErrorHandler errorHandler() {
         var fixedBackOff = new FixedBackOff(1000L,2);
-        var defaultErrorHandler = new DefaultErrorHandler(fixedBackOff);
+        var exponentialBackOff = new ExponentialBackOffWithMaxRetries(2);
+        exponentialBackOff.setInitialInterval(1000L);
+        exponentialBackOff.setMultiplier(2.0);
+        exponentialBackOff.setMaxInterval(2000L);
+        var defaultErrorHandler = new DefaultErrorHandler(exponentialBackOff);
+        var exceptionsToIgnoreList = List.of(IllegalArgumentException.class);
+        var exceptionsToRetryList = List.of(RecoverableDataAccessException.class);
+        //exceptionsToIgnoreList.forEach(defaultErrorHandler::addNotRetryableExceptions);
+        exceptionsToRetryList.forEach(defaultErrorHandler :: addRetryableExceptions);
         defaultErrorHandler.setRetryListeners((record, ex, deliveryAttempt) -> {
             log.info("Failed Record in Retry Listener, Exception : {}, deliveryAttempt : {}",
                     ex.getMessage(), deliveryAttempt);
         });
+
         return defaultErrorHandler;
     }
 }
