@@ -133,8 +133,8 @@ public class LibraryEventsConsumerIntegrationTest {
         latch.await(5, TimeUnit.SECONDS);
 
         //then
-        verify(consumer, times(10)).onMessage(any());
-        verify(libraryEventsService, times(10)).processLibraryEvent(any());
+        verify(consumer, times(3)).onMessage(any());
+        verify(libraryEventsService, times(3)).processLibraryEvent(any());
 
     }
 }
